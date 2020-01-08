@@ -1,0 +1,17 @@
+plugins {
+    id 'java'
+}
+
+group 'de.toymodels.meetings'
+version '1.0.0'
+
+sourceCompatibility = 1.9
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation fileTree(dir: 'C:\\Users\\Bastian\\Desktop\\nxt_1.4.4\\lib', include: '*.jar')
+    implementation 'org.dom4j:dom4j:2.1.1'
+}
