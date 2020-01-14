@@ -2,7 +2,10 @@ package de.toymodels.meetings;
 
 import net.sourceforge.nite.meta.impl.NiteMetaData;
 import net.sourceforge.nite.meta.impl.NiteObservation;
+import net.sourceforge.nite.nom.nomwrite.NOMAttribute;
 import net.sourceforge.nite.nom.nomwrite.NOMElement;
+import net.sourceforge.nite.nom.nomwrite.NOMPointer;
+import net.sourceforge.nite.nom.nomwrite.impl.NOMWriteAnnotation;
 import net.sourceforge.nite.nom.nomwrite.impl.NOMWriteCorpus;
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
@@ -53,23 +56,121 @@ public class Main {
     }
 
     /**
+     * A simple POJO for topics.
+     */
+    static class Topic {
+
+        private final String scenarioTopicType;
+        private final String description;
+        private final String otherDescription;
+
+        private final String text;
+
+        public Topic(String scenarioTopicType, String description, String otherDescription, String text) {
+            this.scenarioTopicType = scenarioTopicType;
+            this.description = description;
+            this.otherDescription = otherDescription;
+            this.text = text;
+        }
+
+        public String getScenarioTopicType() {
+            return scenarioTopicType;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public String getOtherDescription() {
+            return otherDescription;
+        }
+
+        public String getText() {
+            return text;
+        }
+    }
+
+    /**
      * Generates dev, test and train datasets for the given data.
      *
      * @param args The first element should be a path to a NXT metadata file.
      * @throws Exception If something went wrong.
      */
     public static void main(String[] args) throws Exception {
-        if (args.length != 1) {
-            System.err.println("Please provide exactly one argument with the path to a NXT metadata file.");
+        if (args.length != 2) {
+            System.err.println("Wrong amount of arguments! The following arguments are expected:");
+            System.err.println("1st arg: A path a NXT metadata file");
+            System.err.println("2nd arg: The type of processing. Please read the README for valid types!");
+            System.exit(-1);
             return;
         }
+
         String metaDataFileName = args[0];
+        String processingType = args[1];
+
+        if (!processingType.equals("1") && !processingType.equals("2")) {
+            System.err.println("Invalid processing type (2nd arg) provided! Please read the README for valid types!");
+            System.exit(-1);
+            return;
+        }
 
         NiteMetaData niteMetaData = new NiteMetaData(metaDataFileName);
         List<NiteObservation> observations = convertToGenericList(niteMetaData.getObservations(), NiteObservation.class);
 
         Map<String, DataType> split = getDataSplit(niteMetaData.getCorpusResourcePath() + "/meetings.xml");
 
+        switch (processingType) {
+            case "1":
+                processSummlinks(niteMetaData, observations, split);
+                break;
+            case "2":
+                processTopics(niteMetaData, observations, split);
+                break;
+            default:
+                System.err.println("Unknown processing type!");
+                System.exit(-1);
+        }
+    }
+
+    /**
+     * Writes the topics to files.
+     *
+     * @param niteMetaData The nite meta data.
+     * @param observations A list with observations.
+     * @param split The split for meetings.
+     * @throws Exception If something went wrong.
+     */
+    private static void processTopics(NiteMetaData niteMetaData, List<NiteObservation> observations, Map<String, DataType> split) throws Exception {
+        for (NiteObservation observation : observations) {
+            List<Topic> topics = getTopics(niteMetaData, observation);
+
+            if (topics == null) {
+                continue;
+            }
+
+            DataType dataType = split.get(observation.getShortName());
+
+            if (dataType == null) {
+                System.out.println("[WARN] Unknown data type for " + observation.getShortName() + ". Using TRAIN as fallback!");
+                dataType = DataType.TRAIN;
+            }
+
+            StringBuilder fileContent = new StringBuilder();
+            topics.forEach(topic -> fileContent.append(topic.getText()).append("\n"));
+
+            Files.write(Paths.get("topcis." + observation.getShortName() + "." + dataType.name().toLowerCase() + ".txt"), fileContent.toString().getBytes());
+        }
+    }
+
+    /**
+     * Uses the summlinks to create data pairs that map dialogue acts to sentences from the extractive summaries.
+     *
+     * @param niteMetaData The nite meta data.
+     * @param observations A list with observations.
+     * @param split The split for meetings.
+     * @throws Exception If something went wrong.
+     */
+    private static void processSummlinks(NiteMetaData niteMetaData, List<NiteObservation> observations, Map<String, DataType> split) throws Exception {
         // Group by data type
         HashMap<DataType, List<DataPair>> data = new HashMap<>();
 
@@ -159,6 +260,95 @@ public class Main {
     }
 
     /**
+     * Gets a list with topics for the given observation.
+     *
+     * @param niteMetaData The nite meta data.
+     * @param observation The observation.
+     * @return A list of topics for the given observation. Can be null if there are no topics.
+     * @throws Exception If something went wrong.
+     */
+    private static List<Topic> getTopics(NiteMetaData niteMetaData, NiteObservation observation) throws Exception {
+        List<Topic> topicList = new ArrayList<>();
+
+        NOMWriteCorpus nomCorpus = new NOMWriteCorpus(niteMetaData);
+        nomCorpus.loadData(observation);
+
+        List<?> ungenericTopics = nomCorpus.getElementsByName("topic");
+        if (ungenericTopics == null) {
+            return null;
+        }
+
+        List<NOMWriteAnnotation> topics = convertToGenericList(ungenericTopics, NOMWriteAnnotation.class);
+        for (NOMWriteAnnotation topic : topics) {
+
+            NOMPointer scenarioTopicTypePointer = topic.getPointerWithRole("scenario_topic_type");
+            String scenarioTopicType = null;
+            if (scenarioTopicTypePointer != null) {
+                scenarioTopicType = scenarioTopicTypePointer.getToElement().getAttribute("name").getStringValue();
+            }
+
+            NOMAttribute descriptionAttribute = topic.getAttribute("description");
+            String description = null;
+            if (descriptionAttribute != null) {
+                description = descriptionAttribute.getStringValue();
+            }
+
+            NOMAttribute otherDescriptionAttribute = topic.getAttribute("other_description");
+            String otherDescription = null;
+            if (otherDescriptionAttribute != null) {
+                otherDescription = otherDescriptionAttribute.getStringValue();
+            }
+
+            List<?> ungenericWords = topic.getChildren();
+            if (ungenericWords == null) {
+                continue;
+            }
+
+            List<NOMElement> words = convertToGenericList(ungenericWords, NOMElement.class);
+            StringBuilder builder = new StringBuilder();
+            collectWords(words, builder);
+
+            if (builder.length() <= 0) {
+                continue;
+            }
+
+            topicList.add(new Topic(scenarioTopicType, description, otherDescription, builder.toString()));
+        }
+
+        return topicList;
+    }
+
+    /**
+     * Takes a list of words and appends them to the given string builder.
+     * <p>
+     * Does some additional processing like dropping some unwanted words.
+     *
+     * @param words The words.
+     * @param builder The string builder.
+     */
+    private static void collectWords(List<NOMElement> words, StringBuilder builder) {
+        words.forEach(word -> {
+            // Some words have no text for some reason
+            if (word.getText() == null) {
+                return;
+            }
+            // Some words should be dropped, as they don't add any meaningful value to the sentence
+            if (WORDS_TO_DROP.contains(word.getText().toLowerCase())) {
+                return;
+            }
+            // Addresses https://github.com/asyml/texar/issues/264
+            if (builder.toString().split(" ").length > 350) {
+                return;
+            }
+            // Add a space when the word is no punctuation mark and there was a word before
+            if (word.getAttribute("punc") == null && builder.length() > 0) {
+                builder.append(" ");
+            }
+            builder.append(word.getText());
+        });
+    }
+
+    /**
      * Gets a list of data pairs for the given observation.
      *
      * @param niteMetaData The nite meta data.
@@ -195,25 +385,7 @@ public class Main {
             abstractiveIdToSummarization.put(abstractive.getID(), abstractive.getText());
             StringBuilder builder = new StringBuilder();
             builder.append(abstractiveIdIdToTranscript.getOrDefault(abstractive.getID(), ""));
-            words.forEach(word -> {
-                // Some words have no text for some reason
-                if (word.getText() == null) {
-                    return;
-                }
-                // Some words should be dropped, as they don't add any meaningful value to the sentence
-                if (WORDS_TO_DROP.contains(word.getText().toLowerCase())) {
-                    return;
-                }
-                // Addresses https://github.com/asyml/texar/issues/264
-                if (builder.toString().split(" ").length > 350) {
-                    return;
-                }
-                // Add a space when the word is no punctuation mark and there was a word before
-                if (word.getAttribute("punc") == null && builder.length() > 0) {
-                    builder.append(" ");
-                }
-                builder.append(word.getText());
-            });
+            collectWords(words, builder);
             abstractiveIdIdToTranscript.put(abstractive.getID(), builder.toString());
         }
 
