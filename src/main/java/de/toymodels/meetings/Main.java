@@ -108,7 +108,7 @@ public class Main {
         String metaDataFileName = args[0];
         String processingType = args[1];
 
-        if (!processingType.equals("1") && !processingType.equals("2")) {
+        if (!processingType.equals("1") && !processingType.equals("2") && !processingType.equals("3")) {
             System.err.println("Invalid processing type (2nd arg) provided! Please read the README for valid types!");
             System.exit(-1);
             return;
@@ -125,6 +125,9 @@ public class Main {
                 break;
             case "2":
                 processTopics(niteMetaData, observations, split);
+                break;
+            case "3":
+                processSummaries(niteMetaData, observations, split);
                 break;
             default:
                 System.err.println("Unknown processing type!");
@@ -159,6 +162,33 @@ public class Main {
             topics.forEach(topic -> fileContent.append(topic.getText()).append("\n"));
 
             Files.write(Paths.get("topcis." + observation.getShortName() + "." + dataType.name().toLowerCase() + ".txt"), fileContent.toString().getBytes());
+        }
+    }
+
+    /**
+     * Writes the summaries to files.
+     *
+     * @param niteMetaData The nite meta data.
+     * @param observations A list with observations.
+     * @param split The split for meetings.
+     * @throws Exception If something went wrong.
+     */
+    private static void processSummaries(NiteMetaData niteMetaData, List<NiteObservation> observations, Map<String, DataType> split) throws Exception {
+        for (NiteObservation observation : observations) {
+            String summary = getSummary(niteMetaData, observation);
+
+            if (summary.isEmpty()) {
+                continue;
+            }
+
+            DataType dataType = split.get(observation.getShortName());
+
+            if (dataType == null) {
+                System.out.println("[WARN] Unknown data type for " + observation.getShortName() + ". Using TRAIN as fallback!");
+                dataType = DataType.TRAIN;
+            }
+
+            Files.write(Paths.get("summaries." + observation.getShortName() + "." + dataType.name().toLowerCase() + ".txt"), summary.getBytes());
         }
     }
 
@@ -259,6 +289,32 @@ public class Main {
         return split;
     }
 
+    private static String getSummary(NiteMetaData niteMetaData, NiteObservation observation) throws Exception {
+        NOMWriteCorpus nomCorpus = new NOMWriteCorpus(niteMetaData);
+        nomCorpus.loadData(observation);
+
+        List<?> ungenericAbstract = nomCorpus.getElementsByName("abstract");
+        if (ungenericAbstract == null) {
+            return null;
+        }
+
+        List<NOMWriteAnnotation> abstracts = convertToGenericList(ungenericAbstract, NOMWriteAnnotation.class);
+        if (abstracts.size() != 1) {
+            throw new IllegalStateException("Meeting with more than one abstract!");
+        }
+
+        List<?> ungenericSentences = abstracts.get(0).getChildren();
+        if (ungenericSentences == null) {
+            return null;
+        }
+
+        List<NOMWriteAnnotation> sentences = convertToGenericList(ungenericSentences, NOMWriteAnnotation.class);
+
+        StringBuilder fullAbstract = new StringBuilder();
+        sentences.forEach(sentence -> fullAbstract.append(sentence.getText()).append(" "));
+        return fullAbstract.toString();
+    }
+
     /**
      * Gets a list with topics for the given observation.
      *
@@ -337,7 +393,7 @@ public class Main {
                 return;
             }
             // Addresses https://github.com/asyml/texar/issues/264
-            if (builder.toString().split(" ").length > 350) {
+            if (builder.toString().split(" ").length > 250) {
                 return;
             }
             // Add a space when the word is no punctuation mark and there was a word before

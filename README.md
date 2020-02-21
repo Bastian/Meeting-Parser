@@ -8,7 +8,7 @@ The code that uses this data can be found at
 
 ## Motivation
 
-This program has two processing types:
+This program has three processing types:
 
 ### First Processing Type
 
@@ -40,6 +40,11 @@ Sentence 1 of nth topic. Sentence 2 of nth topic. ... Last Sentence of nth topic
 ...
 Sentence 1 of last topic. Sentence 2 of last topic. ... Last Sentence of last topic.
 ```
+
+### Third Processing Type
+
+For every meeting, an abstract summary is available. With the second processing type, the program creates
+a file for every meeting with it's summary.
 
 ## Data Cleaning
 

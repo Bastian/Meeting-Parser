@@ -4,3 +4,5 @@ build
 
 # Generated files
 data.*.tsv
+topics.*.txt
+summaries.*.txt
