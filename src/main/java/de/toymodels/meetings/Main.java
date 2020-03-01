@@ -28,6 +28,19 @@ public class Main {
             "uh", "um", "mm", // HESITATIONS
             "eh", "huh"); // TAG QUESTIONS
 
+    private static final List<String> ICSI_TRAIN = List.of(
+            "Bdb001", "Bed002", "Bed003", "Bed005", "Bed006", "Bed008", "Bed010",
+            "Bed011", "Bed012", "Bed013", "Bed014", "Bed015", "Bed017", "Bmr003",
+            "Bmr006", "Bmr007", "Bmr009", "Bmr010", "Bmr011", "Bmr012", "Bmr013",
+            "Bmr014", "Bmr015", "Bmr016", "Bmr020", "Bmr023", "Bmr024", "Bmr025",
+            "Bmr026", "Bmr027", "Bro003", "Bro004", "Bro005", "Bro007", "Bro010",
+            "Bro011", "Bro012", "Bro013", "Bro014", "Bro015", "Bro016", "Bro017",
+            "Bro019", "Bro021", "Bro022", "Bro023", "Bro024", "Bro027", "Bro028");
+
+    private static final List<String> ICSI_DEV = List.of("Bmr018", "Bns001", "Bro008", "Bro025", "Bro026", "Buw001");
+
+    private static final List<String> ICSI_TEST = List.of("Bed004", "Bed009", "Bed016", "Bmr005", "Bmr019", "Bro018");
+
     enum DataType {
         TRAIN, DEV, TEST
     }
@@ -154,8 +167,7 @@ public class Main {
             DataType dataType = split.get(observation.getShortName());
 
             if (dataType == null) {
-                System.out.println("[WARN] Unknown data type for " + observation.getShortName() + ". Using TRAIN as fallback!");
-                dataType = DataType.TRAIN;
+                dataType = getIcsiDataType(observation.getShortName());
             }
 
             StringBuilder fileContent = new StringBuilder();
@@ -177,15 +189,14 @@ public class Main {
         for (NiteObservation observation : observations) {
             String summary = getSummary(niteMetaData, observation);
 
-            if (summary.isEmpty()) {
+            if (summary == null || summary.isEmpty()) {
                 continue;
             }
 
             DataType dataType = split.get(observation.getShortName());
 
             if (dataType == null) {
-                System.out.println("[WARN] Unknown data type for " + observation.getShortName() + ". Using TRAIN as fallback!");
-                dataType = DataType.TRAIN;
+                dataType = getIcsiDataType(observation.getShortName());
             }
 
             Files.write(Paths.get("summaries." + observation.getShortName() + "." + dataType.name().toLowerCase() + ".txt"), summary.getBytes());
@@ -214,8 +225,7 @@ public class Main {
             DataType dataType = split.get(observation.getShortName());
 
             if (dataType == null) {
-                System.out.println("[WARN] Unknown data type for " + observation.getShortName() + ". Using TRAIN as fallback!");
-                dataType = DataType.TRAIN;
+                dataType = getIcsiDataType(observation.getShortName());
             }
 
             data.computeIfAbsent(dataType, k -> new ArrayList<>()).addAll(dataPairs);
@@ -472,6 +482,24 @@ public class Main {
             }
         }
         return newList;
+    }
+
+    /**
+     * Gets the hardcoded data type of a meeting of the ICSI data set.
+     *
+     * @param shortName The short name of the meeting.
+     * @return The data type of the observation.
+     */
+    private static DataType getIcsiDataType(String shortName) {
+        if (ICSI_TRAIN.contains(shortName)) {
+            return DataType.TRAIN;
+        } else if (ICSI_DEV.contains(shortName)) {
+            return DataType.DEV;
+        } else if (ICSI_TEST.contains(shortName)) {
+            return DataType.TEST;
+        } else {
+            throw new IllegalArgumentException("Observation with unknown datatype");
+        }
     }
 
 }

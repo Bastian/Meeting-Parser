@@ -44,7 +44,7 @@ Sentence 1 of last topic. Sentence 2 of last topic. ... Last Sentence of last to
 ### Third Processing Type
 
 For every meeting, an abstract summary is available. With the second processing type, the program creates
-a file for every meeting with it's summary.
+a file for every meeting with its summary.
 
 ## Data Cleaning
 
@@ -74,9 +74,9 @@ argument (for the processing type).
 
 ## Parsing other datasets
 
-The first processing type also works with the [ICSI Meeting Corpus](http://groups.inf.ed.ac.uk/ami/icsi/).
+The processing also works with the [ICSI Meeting Corpus](http://groups.inf.ed.ac.uk/ami/icsi/).
 However, as this corpus does not contain any information about how the data should be split, it will
-only produce a single `data.train.tsv` that contains all the data.
+only use a hardcoded data split.
 
 Other datasets were not tested.
 
